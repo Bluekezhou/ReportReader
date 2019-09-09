@@ -9,9 +9,12 @@ import curses
 import pyperclip
 import string
 import argparse
+import json
 
 parser = argparse.ArgumentParser(prog="ReportReader")
-parser.add_argument("report", help="report file")
+parser.add_argument("-r", "--report", help="report file")
+parser.add_argument("-s", "--source", help="kernel source")
+parser.add_argument("-cfg", "--config", help="configuration")
 
 
 # import sys
@@ -24,7 +27,21 @@ parser.add_argument("report", help="report file")
 # pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 reports = []
-KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
+
+
+class Config:
+    KernelSource = None
+    Report = None
+
+    @staticmethod
+    def check():
+        if not Config.KernelSource:
+            print("kernel source is required")
+            os.exit(-1)
+
+        if not Config.Report:
+            print("ktsan report is required")
+            os.exit(-1)
 
 
 class ReportLines(npyscreen.MultiLineAction):
@@ -33,17 +50,10 @@ class ReportLines(npyscreen.MultiLineAction):
         self.add_handlers({
             curses.KEY_RIGHT:   self.next_report,
             curses.KEY_LEFT:    self.previous_report,
+            curses.ascii.LF:    self.handle_enter,
             "^N":               self.copy_to_clipboard,
-            curses.ascii.LF:    self.handle_enter
         })
         self.report_index = 0
-
-    # def set_up_handlers(self):
-    #     super(ReportLines, self).set_up_handlers()
-    #     self.handlers.update({
-    #                 curses.KEY_DOWN:    self.h_act_on_highlighted,
-    #                 curses.KEY_UP:      self.h_act_on_highlighted,
-    #             })
 
     def handle_enter(self, *args, **kwargs):
         self.update_source()
@@ -52,27 +62,25 @@ class ReportLines(npyscreen.MultiLineAction):
         mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
         self.cursor_line = rel_y // self._contained_widget_height + self.start_display_at
 
-        if self.cursor_line < len(self.values):
-            target_line = self.values[self.cursor_line]
-            if bstate == curses.BUTTON1_CLICKED:
-                pyperclip.copy(target_line)
+        if self.cursor_line >= len(self.values):
+            return
 
-            elif bstate == curses.BUTTON1_DOUBLE_CLICKED:
-                start = end = rel_x
-                while start > 0 and target_line[start - 1] not in string.whitespace:
-                    start -= 1
-                while end < len(target_line) - 1 and \
-                        target_line[end + 1] not in string.whitespace:
-                    end += 1
+        target_line = self.values[self.cursor_line]
+        if bstate == curses.BUTTON1_CLICKED:
+            pyperclip.copy(target_line)
 
-                pyperclip.copy(target_line[start: end])
-                # npyscreen.notify_confirm(str(rel_x) + " " + target_line[start: end])
+        elif bstate == curses.BUTTON1_DOUBLE_CLICKED:
+            start = end = rel_x
+            while start > 0 and target_line[start - 1] not in string.whitespace:
+                start -= 1
+            while end < len(target_line) - 1 and \
+                    target_line[end + 1] not in string.whitespace:
+                end += 1
 
-            self.update_source(target_line)
-            self.display()
+            pyperclip.copy(target_line[start: end])
 
-    # def actionHighlighted(self, act_on_this, key_press):
-    #     self.update_source(act_on_this)
+        self.update_source(target_line)
+        self.display()
 
     def next_report(self, *args, **kwargs):
         self.report_index += 1
@@ -108,11 +116,7 @@ class ReportLines(npyscreen.MultiLineAction):
 
     def update_report(self, index):
         self.report_index = index
-        head = [
-            "total report {}, current is {}".format(len(reports), index),
-            " "
-            " "
-        ]
+        head = ["total report {}, current is {}".format(len(reports), index), " "]
         self.values = head
         self.values.extend(reports[index].splitlines())
         self.display()
@@ -126,7 +130,7 @@ class SourceLines(npyscreen.MultiLineAction):
         self.highlight_lines = []
 
     def update_source(self, source, line):
-        source_file = os.path.join(KernelSource, source)
+        source_file = os.path.join(Config.KernelSource, source)
         if not os.path.exists(source_file):
             return
 
@@ -149,15 +153,6 @@ class SourceLines(npyscreen.MultiLineAction):
             self.values = out
             self.display()
 
-    # def update(self, clear=True):
-    #     super(SourceLines, self).update(clear)
-    #     line_attr = curses.A_NORMAL
-    #     line_attr |= self.parent.theme_manager.findPair(self, 'CAUTION')
-    #     for line_index in self.highlight_lines:
-    #         line = self.values[line_index]
-    #         attr_list =  self.make_attributes_list(line, line_attr)
-    #         self.add_line(line_index, 0, line, attr_list, self.width-8)
-
 
 class ReportBox(npyscreen.BoxTitle):
     _contained_widget = ReportLines
@@ -177,8 +172,6 @@ class SourceBox(npyscreen.BoxTitle):
 
     def update_source(self, source, line):
         self.entry_widget.update_source(source, line)
-
-    # def update(self, clear=True):
 
 
 class GotoEdit(npyscreen.TitleText):
@@ -216,8 +209,10 @@ class App(npyscreen.NPSAppManaged):
 
         main_form.wGoto = main_form.add(GotoEdit, name="Goto:")
         center = main_form.columns // 2
-        main_form.wReport = main_form.add(ReportBox, name="Report:", max_height=None, max_width=center, relx=2, rely=3)
-        main_form.wSource = main_form.add(SourceBox, name="Source:", max_height=None, max_width=center - 6, relx=center + 2, rely=3)
+        main_form.wReport = main_form.add(ReportBox, name="Report:", max_height=None, max_width=center,
+                                          relx=2, rely=3)
+        main_form.wSource = main_form.add(SourceBox, name="Source:", max_height=None, max_width=None,
+                                          relx=center+2, rely=3)
 
         main_form.wReport.update_report(0)
 
@@ -227,8 +222,52 @@ class App(npyscreen.NPSAppManaged):
         npyscreen.notify_wait("Goodbye!")
 
 
-if __name__ == "__main__":
+def parse_arguments():
     args = parser.parse_args()
-    reports = report.load_report(args.report)
-    App = App()
-    App.run()
+    if args.source:
+        Config.KernelSource = args.source
+
+    if args.report:
+        Config.Report = args.report
+
+    if args.config:
+        if not os.path.exists(args.config):
+            print("{} not existed, check it")
+            os._exit(-1)
+
+        with open(args.config, "r") as f:
+            data = f.read()
+            cfg = json.loads(data)
+
+        if "source" in cfg:
+            if Config.KernelSource:
+                print("duplicated source argument")
+                os._exit(-1)
+            else:
+                Config.KernelSource = cfg['source']
+
+        if "report" in cfg:
+            if Config.Report:
+                print("duplicated report argument")
+                os._exit(-1)
+            else:
+                Config.Report = cfg['report']
+
+    Config.check()
+
+
+def main():
+    global reports
+    parse_arguments()
+    reports = report.load_report(Config.Report)
+
+    if not reports or len(reports) == 0:
+        print("Warning!!! Empty report")
+        return
+
+    app = App()
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
