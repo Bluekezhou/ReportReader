@@ -14,7 +14,6 @@ parser = argparse.ArgumentParser(prog="ReportReader")
 parser.add_argument("report", help="report file")
 
 
-reports = []
 # import sys
 # sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
 # try:
@@ -24,6 +23,7 @@ reports = []
 # import pydevd
 # pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
+reports = []
 KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
 
 
@@ -129,21 +129,13 @@ class SourceLines(npyscreen.MultiLineAction):
         with open(source_file) as f:
             data = f.readlines()
             height = self.max_height // 2
-            start = line - height
-            end = line + height
-            while start > self.max_height:
-                start -= self.max_height
-            while end + self.max_height - 1 < len(data):
-                end += self.max_height - 1  # -- more -- on line
-
             out = []
-            for i in range(start, end + 1):
+            for i in range(len(data)):
                 tmp_line = data[i].replace("\t", " " * 4)
-                if line == i:
-                    # self.highlight_lines.append(i)
-                    out.append("=> %4d: %s" % (i, tmp_line))
-                    self.start_display_at = i - height - start
-                    self.cursor_line = i - start
+                if line == i+1:
+                    out.append("=> %4d: %s" % (i+1, tmp_line))
+                    self.start_display_at = i - height
+                    self.cursor_line = i
                 else:
                     out.append("   %4d: %s" % (i, tmp_line))
 
