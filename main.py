@@ -7,16 +7,34 @@ import re
 import os
 import curses
 import pyperclip
+import argparse
 
-reports = report.load_report("./ipv6.report")
-import sys
-sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
-try:
-    import pydevd
-except Exception as e:
-    pass
+parser = argparse.ArgumentParser(prog="ReportReader")
+parser.add_argument("report", help="report file")
+
+
+reports = [] # report.load_report("./ipv6.report")
+# import sys
+# sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
+# try:
+#     import pydevd
+# except Exception as e:
+#     pass
+# import pydevd
+# pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
+
+
+class Theme(npyscreen.Themes.ColorfulTheme):
+
+    def __init__(self, *args, **keywords):
+        super(Theme, self).__init__(*args, **keywords)
+
+    def findPair(self, caller, request='DEFAULT'):
+        if isinstance(caller, SourceBox):
+            a = 1
+        return super(Theme, self).findPair(caller, request)
 
 
 class ReportLines(npyscreen.MultiLineAction):
@@ -41,16 +59,14 @@ class ReportLines(npyscreen.MultiLineAction):
         if self.report_index >= len(reports):
             return
 
-        self.values = reports[self.report_index].splitlines()
-        self.display()
+        self.update_report(self.report_index)
 
     def previous_report(self, *args, **kwargs):
         self.report_index -= 1
         if self.report_index >= len(reports):
             return
 
-        self.values = reports[self.report_index].splitlines()
-        self.display()
+        self.update_report(self.report_index)
 
     def copy_to_clipboard(self, *args, **kwargs):
         pyperclip.copy(reports[self.report_index])
@@ -69,7 +85,13 @@ class ReportLines(npyscreen.MultiLineAction):
 
     def update_report(self, index):
         self.report_index = index
-        self.values = reports[index].splitlines()
+        head = [
+            "total report {}, current is {}".format(len(reports), index),
+            " "
+            " "
+        ]
+        self.values = head
+        self.values.extend(reports[index].splitlines())
         self.display()
 
 
@@ -78,17 +100,39 @@ class SourceLines(npyscreen.MultiLineAction):
         super(SourceLines, self).__init__(*args, **keywords)
         self.source = ''
         self.line = -1
+        self.highlight_lines = []
 
     def update_source(self, source, line):
         source_file = os.path.join(KernelSource, source)
         if not os.path.exists(source_file):
             return
 
+        self.source = source_file
+        self.line = line
+        self.highlight_lines = []
         with open(source_file) as f:
             data = f.readlines()
             height = self.max_height // 2
-            self.values = data[max(0, line - height): min(len(data), line + height)]
+            lines = data[max(0, line - height): min(len(data), line + height)]
+            for i in range(len(lines)):
+                line_num = line - height + 1 + i
+                if line_num == line:
+                    # self.highlight_lines.append(i)
+                    lines[i] = "=> %4d: %s" % (line_num, lines[i])
+                else:
+                    lines[i] = "   %4d: %s" % (line_num, lines[i])
+
+            self.values = lines
             self.display()
+
+    # def update(self, clear=True):
+    #     super(SourceLines, self).update(clear)
+    #     line_attr = curses.A_NORMAL
+    #     line_attr |= self.parent.theme_manager.findPair(self, 'CAUTION')
+    #     for line_index in self.highlight_lines:
+    #         line = self.values[line_index]
+    #         attr_list =  self.make_attributes_list(line, line_attr)
+    #         self.add_line(line_index, 0, line, attr_list, self.width-8)
 
 
 class ReportBox(npyscreen.BoxTitle):
@@ -109,6 +153,8 @@ class SourceBox(npyscreen.BoxTitle):
 
     def update_source(self, source, line):
         self.entry_widget.update_source(source, line)
+
+    # def update(self, clear=True):
 
 
 class GotoEdit(npyscreen.TitleText):
@@ -142,20 +188,21 @@ class GotoEdit(npyscreen.TitleText):
 class TestApp(npyscreen.NPSApp):
 
     def main(self):
-        main_form = npyscreen.FormBaseNew(name="Welcome to Npyscreen", )
+        # npyscreen.setTheme(Theme)
+        main_form = npyscreen.FormBaseNew(name="Ktsan Report Reader", )
 
         main_form.wGoto = main_form.add(GotoEdit, name="Goto:")
         center = main_form.columns // 2
         main_form.wReport = main_form.add(ReportBox, name="Report:", max_height=None, max_width=center, relx=2, rely=3)
         main_form.wSource = main_form.add(SourceBox, name="Source:", max_height=None, max_width=center - 6, relx=center + 2, rely=3)
 
-        main_form.wReport.values = reports[0].splitlines()
+        main_form.wReport.update_report(0)
 
         main_form.edit()
 
 
 if __name__ == "__main__":
-    import pydevd
-    # pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
+    args = parser.parse_args()
+    reports = report.load_report(args.report)
     App = TestApp()
     App.run()
