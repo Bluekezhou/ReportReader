@@ -44,7 +44,44 @@ class Config:
             os.exit(-1)
 
 
-class ReportLines(npyscreen.MultiLineAction):
+class BetterMultiLine(npyscreen.MultiLine):
+    def __init__(self, *args, **kwargs):
+        super(BetterMultiLine, self).__init__(*args, **kwargs)
+
+    def handle_mouse_event(self, mouse_event):
+        _, rel_x, rel_y, _, mask = self.interpret_mouse_event(mouse_event)
+        self.cursor_line = rel_y // self._contained_widget_height + self.start_display_at
+
+        if self.cursor_line >= len(self.values):
+            return
+
+        target_line = self.values[self.cursor_line]
+        if mask == curses.BUTTON1_CLICKED:
+            pyperclip.copy(target_line)
+
+        elif mask == curses.BUTTON1_DOUBLE_CLICKED:
+            start = end = rel_x
+            while start > 0 and target_line[start - 1] not in string.whitespace:
+                start -= 1
+            while end < len(target_line) - 1 and \
+                    target_line[end + 1] not in string.whitespace:
+                end += 1
+
+            pyperclip.copy(target_line[start: end+1])
+
+        elif mask == curses.BUTTON1_TRIPLE_CLICKED:
+            start = end = rel_x
+            space = string.ascii_letters + string.digits + "_"
+            while start > 0 and target_line[start - 1] in space:
+                start -= 1
+
+            while end < len(target_line) - 1 and target_line[end + 1] in space:
+                end += 1
+
+            pyperclip.copy(target_line[start: end+1])
+
+
+class ReportLines(BetterMultiLine):
     def __init__(self, *args, **keywords):
         super(ReportLines, self).__init__(*args, **keywords)
         self.add_handlers({
@@ -59,26 +96,14 @@ class ReportLines(npyscreen.MultiLineAction):
         self.update_source()
 
     def handle_mouse_event(self, mouse_event):
-        mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
+        super(ReportLines, self).handle_mouse_event(mouse_event)
+        _, rel_x, rel_y, _, _ = self.interpret_mouse_event(mouse_event)
         self.cursor_line = rel_y // self._contained_widget_height + self.start_display_at
 
         if self.cursor_line >= len(self.values):
             return
 
         target_line = self.values[self.cursor_line]
-        if bstate == curses.BUTTON1_CLICKED:
-            pyperclip.copy(target_line)
-
-        elif bstate == curses.BUTTON1_DOUBLE_CLICKED:
-            start = end = rel_x
-            while start > 0 and target_line[start - 1] not in string.whitespace:
-                start -= 1
-            while end < len(target_line) - 1 and \
-                    target_line[end + 1] not in string.whitespace:
-                end += 1
-
-            pyperclip.copy(target_line[start: end])
-
         self.update_source(target_line)
         self.display()
 
@@ -122,7 +147,7 @@ class ReportLines(npyscreen.MultiLineAction):
         self.display()
 
 
-class SourceLines(npyscreen.MultiLineAction):
+class SourceLines(BetterMultiLine):
     def __init__(self, *args, **keywords):
         super(SourceLines, self).__init__(*args, **keywords)
         self.source = ''
