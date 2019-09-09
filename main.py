@@ -33,7 +33,8 @@ class ReportLines(npyscreen.MultiLineAction):
         self.add_handlers({
             curses.KEY_RIGHT:   self.next_report,
             curses.KEY_LEFT:    self.previous_report,
-            "^N":               self.copy_to_clipboard
+            "^N":               self.copy_to_clipboard,
+            curses.ascii.LF:    self.handle_enter
         })
         self.report_index = 0
 
@@ -43,6 +44,9 @@ class ReportLines(npyscreen.MultiLineAction):
     #                 curses.KEY_DOWN:    self.h_act_on_highlighted,
     #                 curses.KEY_UP:      self.h_act_on_highlighted,
     #             })
+
+    def handle_enter(self, *args, **kwargs):
+        self.update_source()
 
     def handle_mouse_event(self, mouse_event):
         mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
@@ -88,7 +92,10 @@ class ReportLines(npyscreen.MultiLineAction):
         pyperclip.copy(reports[self.report_index])
         npyscreen.notify_confirm("report has been copied into clipboard")
 
-    def update_source(self, line):
+    def update_source(self, line=''):
+        if line == '':
+            line = self.values[self.cursor_line]
+
         if not re.match(r"\s+\[.*?\S+:\d+", line):
             return
 
