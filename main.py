@@ -15,14 +15,14 @@ parser.add_argument("report", help="report file")
 
 
 reports = []
-import sys
-sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
-try:
-    import pydevd
-except Exception as e:
-    pass
-import pydevd
-pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
+# import sys
+# sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
+# try:
+#     import pydevd
+# except Exception as e:
+#     pass
+# import pydevd
+# pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
 
