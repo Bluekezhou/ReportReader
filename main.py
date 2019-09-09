@@ -7,6 +7,7 @@ import re
 import os
 import curses
 import pyperclip
+import string
 import argparse
 
 parser = argparse.ArgumentParser(prog="ReportReader")
@@ -14,14 +15,14 @@ parser.add_argument("report", help="report file")
 
 
 reports = []
-# import sys
-# sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
-# try:
-#     import pydevd
-# except Exception as e:
-#     pass
-# import pydevd
-# pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
+import sys
+sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
+try:
+    import pydevd
+except Exception as e:
+    pass
+import pydevd
+pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
 
@@ -46,8 +47,24 @@ class ReportLines(npyscreen.MultiLineAction):
     def handle_mouse_event(self, mouse_event):
         mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
         self.cursor_line = rel_y // self._contained_widget_height + self.start_display_at
+
         if self.cursor_line < len(self.values):
-            self.update_source(self.values[self.cursor_line])
+            target_line = self.values[self.cursor_line]
+            if bstate == curses.BUTTON1_CLICKED:
+                pyperclip.copy(target_line)
+
+            elif bstate == curses.BUTTON1_DOUBLE_CLICKED:
+                start = end = rel_x
+                while start > 0 and target_line[start - 1] not in string.whitespace:
+                    start -= 1
+                while end < len(target_line) - 1 and \
+                        target_line[end + 1] not in string.whitespace:
+                    end += 1
+
+                pyperclip.copy(target_line[start: end])
+                # npyscreen.notify_confirm(str(rel_x) + " " + target_line[start: end])
+
+            self.update_source(target_line)
             self.display()
 
     # def actionHighlighted(self, act_on_this, key_press):
@@ -112,17 +129,25 @@ class SourceLines(npyscreen.MultiLineAction):
         with open(source_file) as f:
             data = f.readlines()
             height = self.max_height // 2
-            lines = data[max(0, line - height): min(len(data), line + height)]
-            for i in range(len(lines)):
-                line_num = line - height + 1 + i
-                tmp_line = lines[i].replace("\t", " " * 4)
-                if line_num == line:
-                    # self.highlight_lines.append(i)
-                    lines[i] = "=> %4d: %s" % (line_num, tmp_line)
-                else:
-                    lines[i] = "   %4d: %s" % (line_num, tmp_line)
+            start = line - height
+            end = line + height
+            while start > self.max_height:
+                start -= self.max_height
+            while end + self.max_height - 1 < len(data):
+                end += self.max_height - 1  # -- more -- on line
 
-            self.values = lines
+            out = []
+            for i in range(start, end + 1):
+                tmp_line = data[i].replace("\t", " " * 4)
+                if line == i:
+                    # self.highlight_lines.append(i)
+                    out.append("=> %4d: %s" % (i, tmp_line))
+                    self.start_display_at = i - height - start
+                    self.cursor_line = i - start
+                else:
+                    out.append("   %4d: %s" % (i, tmp_line))
+
+            self.values = out
             self.display()
 
     # def update(self, clear=True):
