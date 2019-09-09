@@ -30,11 +30,18 @@ class ReportLines(npyscreen.MultiLineAction):
     def __init__(self, *args, **keywords):
         super(ReportLines, self).__init__(*args, **keywords)
         self.add_handlers({
-            curses.KEY_RIGHT: self.next_report,
-            curses.KEY_LEFT: self.previous_report,
-            "^N": self.copy_to_clipboard
+            curses.KEY_RIGHT:   self.next_report,
+            curses.KEY_LEFT:    self.previous_report,
+            "^N":               self.copy_to_clipboard
         })
         self.report_index = 0
+
+    # def set_up_handlers(self):
+    #     super(ReportLines, self).set_up_handlers()
+    #     self.handlers.update({
+    #                 curses.KEY_DOWN:    self.h_act_on_highlighted,
+    #                 curses.KEY_UP:      self.h_act_on_highlighted,
+    #             })
 
     def handle_mouse_event(self, mouse_event):
         mouse_id, rel_x, rel_y, z, bstate = self.interpret_mouse_event(mouse_event)
@@ -42,6 +49,9 @@ class ReportLines(npyscreen.MultiLineAction):
         if self.cursor_line < len(self.values):
             self.update_source(self.values[self.cursor_line])
             self.display()
+
+    # def actionHighlighted(self, act_on_this, key_press):
+    #     self.update_source(act_on_this)
 
     def next_report(self, *args, **kwargs):
         self.report_index += 1
@@ -105,11 +115,12 @@ class SourceLines(npyscreen.MultiLineAction):
             lines = data[max(0, line - height): min(len(data), line + height)]
             for i in range(len(lines)):
                 line_num = line - height + 1 + i
+                tmp_line = lines[i].replace("\t", " " * 4)
                 if line_num == line:
                     # self.highlight_lines.append(i)
-                    lines[i] = "=> %4d: %s" % (line_num, lines[i])
+                    lines[i] = "=> %4d: %s" % (line_num, tmp_line)
                 else:
-                    lines[i] = "   %4d: %s" % (line_num, lines[i])
+                    lines[i] = "   %4d: %s" % (line_num, tmp_line)
 
             self.values = lines
             self.display()
@@ -174,10 +185,9 @@ class GotoEdit(npyscreen.TitleText):
         self.parent.wReport.update_report(report_index)
 
 
-class TestApp(npyscreen.NPSApp):
+class App(npyscreen.NPSAppManaged):
 
-    def main(self):
-        # npyscreen.setTheme(Theme)
+    def onStart(self):
         main_form = npyscreen.FormBaseNew(name="Ktsan Report Reader", )
 
         main_form.wGoto = main_form.add(GotoEdit, name="Goto:")
@@ -189,9 +199,12 @@ class TestApp(npyscreen.NPSApp):
 
         main_form.edit()
 
+    def onCleanExit(self):
+        npyscreen.notify_wait("Goodbye!")
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
     reports = report.load_report(args.report)
-    App = TestApp()
+    App = App()
     App.run()
