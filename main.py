@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(prog="ReportReader")
 parser.add_argument("report", help="report file")
 
 
-reports = [] # report.load_report("./ipv6.report")
+reports = []
 # import sys
 # sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
 # try:
@@ -26,24 +26,13 @@ reports = [] # report.load_report("./ipv6.report")
 KernelSource = '/home/test/Android/android-kernel/GOLDFISH/goldfish'
 
 
-class Theme(npyscreen.Themes.ColorfulTheme):
-
-    def __init__(self, *args, **keywords):
-        super(Theme, self).__init__(*args, **keywords)
-
-    def findPair(self, caller, request='DEFAULT'):
-        if isinstance(caller, SourceBox):
-            a = 1
-        return super(Theme, self).findPair(caller, request)
-
-
 class ReportLines(npyscreen.MultiLineAction):
     def __init__(self, *args, **keywords):
         super(ReportLines, self).__init__(*args, **keywords)
         self.add_handlers({
-            "^N": self.next_report,
-            "^P": self.previous_report,
-            "^L": self.copy_to_clipboard
+            curses.KEY_RIGHT: self.next_report,
+            curses.KEY_LEFT: self.previous_report,
+            "^N": self.copy_to_clipboard
         })
         self.report_index = 0
 
