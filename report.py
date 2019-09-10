@@ -39,7 +39,7 @@ def load_report(filepath):
 
 def filter_report(reports, blacklist):
 
-    def is_filtered(report):
+    def check(report):
         total_count = 0
         for w in blacklist:
             count = report.count(w)
@@ -54,7 +54,7 @@ def filter_report(reports, blacklist):
     left = []
     filtered = []
     for index, rep in enumerate(reports):
-        if is_filtered(rep):
+        if not check(rep):
             filtered.append(index)
         else:
             left.append(index)

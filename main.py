@@ -58,8 +58,6 @@ class Global:
         MODE_BAD: "Bad",
     }
 
-    _APP = None
-
     @staticmethod
     def check_index(index):
         if Global.Mode == Global.MODE_ALL:
