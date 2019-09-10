@@ -319,11 +319,15 @@ class MainForm(npyscreen.FormBaseNew):
         self.wReport.update_report(0)
 
         self.add_handlers({
-            "^E": self.change_mode
+            "^E": self.change_mode,
+            "^G": self.goto_report,
         })
 
     def change_mode(self, *args, **kwargs):
         self.parentApp.switchForm("FORM_SELECT")
+
+    def goto_report(self, *args, **kwargs):
+        self.wGoto.edit()
 
 
 class ModeSelectForm(npyscreen.ActionForm):
