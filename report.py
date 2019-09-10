@@ -37,6 +37,31 @@ def load_report(filepath):
     return reports
 
 
+def filter_report(reports, blacklist):
+
+    def is_filtered(report):
+        total_count = 0
+        for w in blacklist:
+            count = report.count(w)
+            total_count += count
+            if count >= 3:
+                return False
+
+        if total_count >= 4:
+            return False
+        return True
+
+    left = []
+    filtered = []
+    for index, rep in enumerate(reports):
+        if is_filtered(rep):
+            filtered.append(index)
+        else:
+            left.append(index)
+
+    return left, filtered
+
+
 def parse_report(report):
     """
     Args:

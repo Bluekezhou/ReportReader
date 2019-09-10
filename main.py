@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import npyscreen
-import report
+from report import load_report, filter_report
 import re
 import os
 import curses
@@ -26,12 +26,11 @@ parser.add_argument("-cfg", "--config", help="configuration")
 # import pydevd
 # pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
-reports = []
-
 
 class Config:
     KernelSource = None
     Report = None
+    Blacklist = None
 
     @staticmethod
     def check():
@@ -42,6 +41,86 @@ class Config:
         if not Config.Report:
             print("ktsan report is required")
             os.exit(-1)
+
+
+class Global:
+    MODE_ALL = 0
+    MODE_GOOD = 1
+    MODE_BAD = 2
+    Mode = MODE_ALL
+    AllReport = None
+    GoodReport = None    # index list
+    BadReport = None     # index list
+    CurrentIndex = None  # index list
+    ModeName = {
+        MODE_ALL: "All",
+        MODE_GOOD: "Good",
+        MODE_BAD: "Bad",
+    }
+
+    _APP = None
+
+    @staticmethod
+    def check_index(index):
+        if Global.Mode == Global.MODE_ALL:
+            size = len(Global.AllReport)
+        elif Global.Mode == Global.MODE_GOOD:
+            size = len(Global.GoodReport)
+        elif Global.Mode == Global.MODE_BAD:
+            size = len(Global.BadReport)
+
+        if 0 <= index <= size:
+            return True
+
+        return False
+
+    @staticmethod
+    def get_real_index(index):
+        if not Global.check_index(index):
+            return -1
+
+        if Global.Mode == Global.MODE_ALL:
+            return index
+        elif Global.Mode == Global.MODE_GOOD:
+            return Global.GoodReport[index]
+        elif Global.Mode == Global.MODE_BAD:
+            return Global.BadReport[index]
+
+    @staticmethod
+    def get_all_size():
+        return len(Global.AllReport)
+
+    @staticmethod
+    def get_mode_size():
+        if Global.Mode == Global.MODE_ALL:
+            size = len(Global.AllReport)
+        elif Global.Mode == Global.MODE_GOOD:
+            size = len(Global.GoodReport)
+        elif Global.Mode == Global.MODE_BAD:
+            size = len(Global.BadReport)
+
+        return size
+
+    @staticmethod
+    def get_report(index):
+        if Global.Mode == Global.MODE_ALL:
+            return Global.AllReport[index]
+        elif Global.Mode == Global.MODE_GOOD:
+            return Global.AllReport[Global.GoodReport[index]]
+        elif Global.Mode == Global.MODE_BAD:
+            return Global.AllReport[Global.BadReport[index]]
+
+    @staticmethod
+    def set_mode(mode):
+        if mode not in [Global.MODE_ALL, Global.MODE_GOOD, Global.MODE_BAD]:
+            return False
+
+        Global.Mode = mode
+        return True
+
+    @staticmethod
+    def get_mode_name():
+        return Global.ModeName[Global.Mode]
 
 
 class BetterMultiLine(npyscreen.MultiLine):
@@ -109,20 +188,20 @@ class ReportLines(BetterMultiLine):
 
     def next_report(self, *args, **kwargs):
         self.report_index += 1
-        if self.report_index >= len(reports):
+        if not Global.check_index(self.report_index):
             return
 
         self.update_report(self.report_index)
 
     def previous_report(self, *args, **kwargs):
         self.report_index -= 1
-        if self.report_index >= len(reports):
+        if not Global.check_index(self.report_index):
             return
 
         self.update_report(self.report_index)
 
     def copy_to_clipboard(self, *args, **kwargs):
-        pyperclip.copy(reports[self.report_index])
+        pyperclip.copy(Global.get_report(self.report_index))
         npyscreen.notify_confirm("report has been copied into clipboard")
 
     def update_source(self, line=''):
@@ -141,9 +220,12 @@ class ReportLines(BetterMultiLine):
 
     def update_report(self, index):
         self.report_index = index
-        head = ["total report {}, current is {}".format(len(reports), index), " "]
+        head = ["total: {}, mode: {}, mode size: {}, mode index {}, real index {}".format(
+                    Global.get_all_size(), Global.get_mode_name(), Global.get_mode_size(),
+                    self.report_index, Global.get_real_index(self.report_index)),
+                " "]
         self.values = head
-        self.values.extend(reports[index].splitlines())
+        self.values.extend(Global.get_report(index).splitlines())
         self.display()
 
 
@@ -215,8 +297,8 @@ class GotoEdit(npyscreen.TitleText):
             return
 
         report_index = int(data)
-        if report_index >= len(reports):
-            size = len(reports)
+        if not Global.check_index(report_index):
+            size = Global.get_mode_size()
             npyscreen.notify_confirm("Only {} reports, from 0 to {}".format(size, size-1))
             return
 
@@ -227,21 +309,48 @@ class GotoEdit(npyscreen.TitleText):
         self.parent.wReport.update_report(report_index)
 
 
+class MainForm(npyscreen.FormBaseNew):
+
+    def create(self):
+        self.wGoto = self.add(GotoEdit, name="Goto:")
+        center = self.columns // 2
+        self.wReport = self.add(ReportBox, name="Report:", max_height=None, max_width=center,
+                                          relx=2, rely=3)
+        self.wSource = self.add(SourceBox, name="Source:", max_height=None, max_width=None,
+                                          relx=center+2, rely=3)
+        self.wReport.update_report(0)
+
+        self.add_handlers({
+            "^E": self.change_mode
+        })
+
+    def change_mode(self, *args, **kwargs):
+        self.parentApp.switchForm("FORM_SELECT")
+
+
+class ModeSelectForm(npyscreen.ActionForm):
+    def create(self):
+        self.value = None
+        self.modes = [Global.MODE_ALL, Global.MODE_GOOD, Global.MODE_BAD]
+        self.wgSelect = self.add(npyscreen.TitleSelectOne, max_height=4, value=[0, ], name="Choose Mode",
+                                        values=["All", "Good", "Bad"], scroll_exit=True)
+
+    def on_ok(self):
+        mode = self.modes[self.wgSelect.value[0]]
+        Global.set_mode(mode)
+        self.parentApp.main_form.wReport.update_report(0)
+        self.parentApp.switchFormPrevious()
+
+    def on_cancel(self):
+        self.parentApp.switchFormPrevious()
+
+
 class App(npyscreen.NPSAppManaged):
 
     def onStart(self):
-        main_form = npyscreen.FormBaseNew(name="Ktsan Report Reader", )
-
-        main_form.wGoto = main_form.add(GotoEdit, name="Goto:")
-        center = main_form.columns // 2
-        main_form.wReport = main_form.add(ReportBox, name="Report:", max_height=None, max_width=center,
-                                          relx=2, rely=3)
-        main_form.wSource = main_form.add(SourceBox, name="Source:", max_height=None, max_width=None,
-                                          relx=center+2, rely=3)
-
-        main_form.wReport.update_report(0)
-
-        main_form.edit()
+        self.main_form = self.addForm("MAIN", MainForm)
+        self.select_form = self.addForm("FORM_SELECT", ModeSelectForm)
+        # mode_form = npyscreen.FormBaseNew(name="Select Mode")
 
     def onCleanExit(self):
         npyscreen.notify_wait("Goodbye!")
@@ -278,19 +387,24 @@ def parse_arguments():
             else:
                 Config.Report = cfg['report']
 
+        if "blacklist" in cfg:
+            Config.Blacklist = cfg['blacklist']
+
     Config.check()
 
 
 def main():
-    global reports
     parse_arguments()
-    reports = report.load_report(Config.Report)
-
-    if not reports or len(reports) == 0:
+    Global.AllReport = load_report(Config.Report)
+    if not Global.AllReport:
         print("Warning!!! Empty report")
         return
 
+    if Config.Blacklist:
+        Global.GoodReport, Global.BadReport = filter_report(Global.AllReport, Config.Blacklist)
+
     app = App()
+    Global._APP = app
     app.run()
 
 

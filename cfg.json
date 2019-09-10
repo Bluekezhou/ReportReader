@@ -1,4 +1,5 @@
 {
-  "source": "/Users/bluecake/github/goldfish",
-  "report": "/Users/bluecake/Desktop/ReportReader/ipv6.report"
+  "source": "/home/test/Android/android-kernel/GOLDFISH/goldfish",
+  "report": "/home/test/Android/android-kernel/GOLDFISH/goldfish/report/ipv6.report",
+  "blacklist": ["connect", "release", "close", "accept"]
 }
