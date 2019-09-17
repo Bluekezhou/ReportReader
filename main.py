@@ -110,17 +110,17 @@ class ReportLines(BetterMultiLine):
         self.display()
 
     def next_report(self, *args, **kwargs):
-        self.report_index += 1
-        if not repManager.check_index(self.report_index):
+        if not repManager.check_index(self.report_index + 1):
             return
 
+        self.report_index += 1
         self.update_report(self.report_index)
 
     def previous_report(self, *args, **kwargs):
-        self.report_index -= 1
-        if not repManager.check_index(self.report_index):
+        if not repManager.check_index(self.report_index - 1):
             return
 
+        self.report_index -= 1
         self.update_report(self.report_index)
 
     def copy_to_clipboard(self, *args, **kwargs):
@@ -189,7 +189,7 @@ class SourceLines(BetterMultiLine):
                     self.start_display_at = i - height
                     self.cursor_line = i
                 else:
-                    out.append("   %4d: %s" % (i, tmp_line))
+                    out.append("   %4d: %s" % (i+1, tmp_line))
 
             self.values = out
             self.display()

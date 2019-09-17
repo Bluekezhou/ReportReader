@@ -22,15 +22,12 @@ class ReportManager:
     def check_index(self, index):
         size = self.get_mode_size()
 
-        if 0 <= index <= size:
+        if 0 <= index < size:
             return True
         else:
             return False
 
     def get_real_index(self, index):
-        if not self.check_index(index):
-            return -1
-
         if self.mode == "All":
             return index
         else:
@@ -48,11 +45,11 @@ class ReportManager:
         return size
 
     def get_report(self, index):
-        if self.mode == "All":
-            return self.reports[index]
-        else:
-            real_index = self.get_real_index(index)
-            return self.reports[real_index]
+        real_index = self.get_real_index(index)
+        if real_index == -1:
+            return ''
+
+        return self.reports[real_index]
 
     def set_mode(self, mode):
         if mode != "All" and mode not in self.categories:
@@ -86,17 +83,20 @@ def load_report(filepath):
     reports = []
     index = 0
     while index < len(lines) - 1:
-        if re.match(r"={30,50}", lines[index]):
-            report = lines[index]
+        if 'get new report' not in lines[index]:
             index += 1
-            while index < len(lines) - 1:
-                report += lines[index]
-                index += 1
-                if re.match(r"=+", lines[index-1]):
-                    reports.append(report)
-                    break
-        else:
+            continue
+
+        report = ""
+        index += 1
+        while index < len(lines) - 1:
+            if 'get new report' in lines[index]:
+                break
+
+            report += lines[index]
             index += 1
+
+        reports.append(report)
 
     return reports
 
@@ -188,4 +188,4 @@ def parse_report(report):
 
 
 if __name__ == '__main__':
-    load_report("./ipv6.report")
+    load_report("/home/test/Android/android-kernel/GOLDFISH/goldfish/report/ipv6.report")
