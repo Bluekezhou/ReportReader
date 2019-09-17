@@ -2,7 +2,7 @@
 # encoding: utf-8
 
 import npyscreen
-from report import load_report, filter_report
+from report import *
 import re
 import os
 import curses
@@ -21,10 +21,9 @@ parser.add_argument("-cfg", "--config", help="configuration")
 # sys.path.append('/home/test/Worktool/pycharm/helpers/pydev')
 # try:
 #     import pydevd
+#     pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 # except Exception as e:
 #     pass
-# import pydevd
-# pydevd.settrace('localhost', port=4444, stdoutToServer=True, stderrToServer=True)
 
 
 class Config:
@@ -43,82 +42,7 @@ class Config:
             os.exit(-1)
 
 
-class Global:
-    MODE_ALL = 0
-    MODE_GOOD = 1
-    MODE_BAD = 2
-    Mode = MODE_ALL
-    AllReport = None
-    GoodReport = None    # index list
-    BadReport = None     # index list
-    CurrentIndex = None  # index list
-    ModeName = {
-        MODE_ALL: "All",
-        MODE_GOOD: "Good",
-        MODE_BAD: "Bad",
-    }
-
-    @staticmethod
-    def check_index(index):
-        if Global.Mode == Global.MODE_ALL:
-            size = len(Global.AllReport)
-        elif Global.Mode == Global.MODE_GOOD:
-            size = len(Global.GoodReport)
-        elif Global.Mode == Global.MODE_BAD:
-            size = len(Global.BadReport)
-
-        if 0 <= index <= size:
-            return True
-
-        return False
-
-    @staticmethod
-    def get_real_index(index):
-        if not Global.check_index(index):
-            return -1
-
-        if Global.Mode == Global.MODE_ALL:
-            return index
-        elif Global.Mode == Global.MODE_GOOD:
-            return Global.GoodReport[index]
-        elif Global.Mode == Global.MODE_BAD:
-            return Global.BadReport[index]
-
-    @staticmethod
-    def get_all_size():
-        return len(Global.AllReport)
-
-    @staticmethod
-    def get_mode_size():
-        if Global.Mode == Global.MODE_ALL:
-            size = len(Global.AllReport)
-        elif Global.Mode == Global.MODE_GOOD:
-            size = len(Global.GoodReport)
-        elif Global.Mode == Global.MODE_BAD:
-            size = len(Global.BadReport)
-
-        return size
-
-    @staticmethod
-    def get_report(index):
-        if Global.Mode == Global.MODE_ALL:
-            return Global.AllReport[index]
-        elif Global.Mode == Global.MODE_GOOD:
-            return Global.AllReport[Global.GoodReport[index]]
-        elif Global.Mode == Global.MODE_BAD:
-            return Global.AllReport[Global.BadReport[index]]
-
-    @staticmethod
-    def set_mode(mode):
-        if mode not in [Global.MODE_ALL, Global.MODE_GOOD, Global.MODE_BAD]:
-            return False
-
-        Global.Mode = mode
-        return True
-
-    @staticmethod
-    def get_mode_name():
-        return Global.ModeName[Global.Mode]
+repManager = ReportManager()
 
 
 class BetterMultiLine(npyscreen.MultiLine):
@@ -166,6 +90,7 @@ class ReportLines(BetterMultiLine):
             curses.KEY_LEFT:    self.previous_report,
             curses.ascii.LF:    self.handle_enter,
             "^N":               self.copy_to_clipboard,
+            "O":                self.open_editor,
         })
         self.report_index = 0
 
@@ -186,44 +111,55 @@ class ReportLines(BetterMultiLine):
 
     def next_report(self, *args, **kwargs):
         self.report_index += 1
-        if not Global.check_index(self.report_index):
+        if not repManager.check_index(self.report_index):
             return
 
         self.update_report(self.report_index)
 
     def previous_report(self, *args, **kwargs):
         self.report_index -= 1
-        if not Global.check_index(self.report_index):
+        if not repManager.check_index(self.report_index):
             return
 
         self.update_report(self.report_index)
 
     def copy_to_clipboard(self, *args, **kwargs):
-        pyperclip.copy(Global.get_report(self.report_index))
+        pyperclip.copy(repManager.get_report(self.report_index))
         npyscreen.notify_confirm("report has been copied into clipboard")
 
-    def update_source(self, line=''):
+    def get_src_info(self, line=""):
         if line == '':
             line = self.values[self.cursor_line]
 
         if not re.match(r"\s+\[.*?\S+:\d+", line):
-            return
+            return None, None
 
         line = line.strip()
         parts = line.split(" ")
         parts2 = parts[-1].split(":")
         source = parts2[0]
         line = int(parts2[1])
-        self.parent.wSource.update_source(source, line)
+        return source, line
+
+    def update_source(self, line=''):
+        source, line = self.get_src_info(line)
+        if source:
+            self.parent.wSource.update_source(source, line)
+    
+    def open_editor(self, *args, **kwargs):
+        source, _ = self.get_src_info()
+        source = os.path.join(Config.KernelSource, source)
+        os.system("subl " + source)
 
     def update_report(self, index):
         self.report_index = index
         head = ["total: {}, mode: {}, mode size: {}, mode index {}, real index {}".format(
-                    Global.get_all_size(), Global.get_mode_name(), Global.get_mode_size(),
-                    self.report_index, Global.get_real_index(self.report_index)),
-                " "]
+                    repManager.get_all_size(), repManager.get_mode(), repManager.get_mode_size(),
+                    self.report_index, repManager.get_real_index(self.report_index)),
+                " " # add an empty line
+        ]
         self.values = head
-        self.values.extend(Global.get_report(index).splitlines())
+        self.values.extend(repManager.get_report(index).splitlines())
         self.display()
 
 
@@ -247,7 +183,7 @@ class SourceLines(BetterMultiLine):
             height = self.max_height // 2
             out = []
             for i in range(len(data)):
-                tmp_line = data[i].replace("\t", " " * 4)
+                tmp_line = data[i].replace("\t", " " * 8)
                 if line == i+1:
                     out.append("=> %4d: %s" % (i+1, tmp_line))
                     self.start_display_at = i - height
@@ -284,7 +220,6 @@ class GotoEdit(npyscreen.TitleText):
     def __init__(self, *args, **keywords):
         super(GotoEdit, self).__init__(*args, **keywords)
         self.add_handlers({
-            # "^G": self.read_number,
             curses.ascii.LF: self.goto_report
         })
 
@@ -295,8 +230,8 @@ class GotoEdit(npyscreen.TitleText):
             return
 
         report_index = int(data)
-        if not Global.check_index(report_index):
-            size = Global.get_mode_size()
+        if not repManager.check_index(report_index):
+            size = repManager.get_mode_size()
             npyscreen.notify_confirm("Only {} reports, from 0 to {}".format(size, size-1))
             return
 
@@ -321,25 +256,31 @@ class MainForm(npyscreen.FormBaseNew):
         self.add_handlers({
             "^E": self.change_mode,
             "^G": self.goto_report,
+            "Q":  self.exit_handler
         })
 
     def change_mode(self, *args, **kwargs):
         self.parentApp.switchForm("FORM_SELECT")
 
     def goto_report(self, *args, **kwargs):
+        self.wGoto.value = ''
         self.wGoto.edit()
+
+    def exit_handler(self, *args, **kwargs):
+        if npyscreen.notify_ok_cancel("Are you to quit this program?"):
+            self.parentApp.running = False
 
 
 class ModeSelectForm(npyscreen.ActionForm):
     def create(self):
         self.value = None
-        self.modes = [Global.MODE_ALL, Global.MODE_GOOD, Global.MODE_BAD]
-        self.wgSelect = self.add(npyscreen.TitleSelectOne, max_height=4, value=[0, ], name="Choose Mode",
-                                        values=["All", "Good", "Bad"], scroll_exit=True)
+        self.modes = repManager.get_supported_modes()
+        self.wgSelect = self.add(npyscreen.TitleSelectOne, max_height=10, value=[0, ], name="Choose Mode",
+                                        values=self.modes, scroll_exit=True)
 
     def on_ok(self):
         mode = self.modes[self.wgSelect.value[0]]
-        Global.set_mode(mode)
+        repManager.set_mode(mode)
         self.parentApp.main_form.wReport.update_report(0)
         self.parentApp.switchFormPrevious()
 
@@ -397,16 +338,31 @@ def parse_arguments():
 
 def main():
     parse_arguments()
-    Global.AllReport = load_report(Config.Report)
-    if not Global.AllReport:
+    reports = load_report(Config.Report)
+    if not reports:
         print("Warning!!! Empty report")
         return
+    
+    repManager.add_reports(reports)
+
+    whitelist_index = None
 
     if Config.Blacklist:
-        Global.GoodReport, Global.BadReport = filter_report(Global.AllReport, Config.Blacklist)
+        whitelist_index, blacklist_index = filter_report(reports, Config.Blacklist)
+        if blacklist_index:
+            repManager.add_category("Blacklist", blacklist_index)
+
+        if whitelist_index:
+            repManager.add_category("Whitelist", whitelist_index)
+
+    related_index, unrelated_index = find_related_thread(reports, whitelist_index)
+    if unrelated_index:
+        repManager.add_category("Unrelated", unrelated_index)
+
+    if related_index:
+        repManager.add_category("Related", related_index)
 
     app = App()
-    Global._APP = app
     app.run()
 
 
