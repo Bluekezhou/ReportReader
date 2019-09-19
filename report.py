@@ -21,8 +21,12 @@ class ReportManager:
 
     def add_category_with_filter(self, chooser, args, select_name, unselect_name):
         select, unselect = chooser(*args)
-        self.add_category(select_name, select)
-        self.add_category(unselect_name, unselect)
+        if select:
+            self.add_category(select_name, select)
+
+        if unselect:
+            self.add_category(unselect_name, unselect)
+
         return select, unselect
 
     def check_index(self, index):
