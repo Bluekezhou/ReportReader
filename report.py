@@ -19,6 +19,12 @@ class ReportManager:
         self.categories[name] = index
         self.supported_mode.append(name)
 
+    def add_category_with_filter(self, chooser, args, select_name, unselect_name):
+        select, unselect = chooser(*args)
+        self.add_category(select_name, select)
+        self.add_category(unselect_name, unselect)
+        return select, unselect
+
     def check_index(self, index):
         size = self.get_mode_size()
 
@@ -169,6 +175,20 @@ def find_related_thread(reports, index_list=None):
         return filter_without_index(reports, check)
 
 
+def find_race_write(reports, index_list=None):
+    def check(report):
+        out = re.findall("[Ww]rite at ", report)
+        if len(out) >= 2:
+            return True
+
+        return False
+
+    if index_list:
+        return filter_with_index(reports, index_list, check)
+    else:
+        return filter_without_index(reports, check)
+
+
 def parse_report(report):
     """
     Args:
@@ -188,4 +208,5 @@ def parse_report(report):
 
 
 if __name__ == '__main__':
-    load_report("/home/test/Android/android-kernel/GOLDFISH/goldfish/report/ipv6.report")
+    reports = load_report("/home/test/Android/android-kernel/GOLDFISH/goldfish/report/ipv6.report")
+    find_race_write(reports)

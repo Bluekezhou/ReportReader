@@ -35,11 +35,11 @@ class Config:
     def check():
         if not Config.KernelSource:
             print("kernel source is required")
-            os.exit(-1)
+            os._exit(-1)
 
         if not Config.Report:
             print("ktsan report is required")
-            os.exit(-1)
+            os._exit(-1)
 
 
 repManager = ReportManager()
@@ -345,22 +345,18 @@ def main():
     
     repManager.add_reports(reports)
 
-    whitelist_index = None
+    whitelist = None
 
     if Config.Blacklist:
-        whitelist_index, blacklist_index = filter_report(reports, Config.Blacklist)
-        if blacklist_index:
-            repManager.add_category("Blacklist", blacklist_index)
+        args = [reports, Config.Blacklist]
+        whitelist, _ = repManager.add_category_with_filter(filter_report, args, "Whitelist", "Blacklist")
 
-        if whitelist_index:
-            repManager.add_category("Whitelist", whitelist_index)
+    if whitelist:
+        args = [reports, whitelist]
+        repManager.add_category_with_filter(find_related_thread, args, "Related", "Unrelated")
 
-    related_index, unrelated_index = find_related_thread(reports, whitelist_index)
-    if unrelated_index:
-        repManager.add_category("Unrelated", unrelated_index)
-
-    if related_index:
-        repManager.add_category("Related", related_index)
+    args = [reports]
+    repManager.add_category_with_filter(find_race_write, args, "Race Write", "Normal Report")
 
     app = App()
     app.run()
