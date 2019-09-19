@@ -169,6 +169,13 @@ class SourceLines(BetterMultiLine):
         self.source = ''
         self.line = -1
         self.highlight_lines = []
+        self.add_handlers({
+            "O":    self.open_editor
+        })
+
+    def open_editor(self, *args, **kwargs):
+        if self.source:
+            os.system("subl " + self.source)
 
     def update_source(self, source, line):
         source_file = os.path.join(Config.KernelSource, source)
