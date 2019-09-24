@@ -1,5 +1,6 @@
 {
   "source": "/home/test/Android/android-kernel/GOLDFISH/goldfish",
   "report": "/home/test/Android/android-kernel/GOLDFISH/goldfish/report/ipv6.report",
-  "blacklist": ["connect", "release", "close", "accept"]
+  "blacklist": ["connect", "release", "close", "accept"],
+  "default mode": "Race Write"
 }

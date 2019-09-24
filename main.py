@@ -30,6 +30,7 @@ class Config:
     KernelSource = None
     Report = None
     Blacklist = None
+    DefaultMode = None
 
     @staticmethod
     def check():
@@ -340,6 +341,9 @@ def parse_arguments():
         if "blacklist" in cfg:
             Config.Blacklist = cfg['blacklist']
 
+        if "default mode" in cfg:
+            Config.DefaultMode = cfg['default mode']
+
     Config.check()
 
 
@@ -358,12 +362,16 @@ def main():
         args = [reports, Config.Blacklist]
         whitelist, _ = repManager.add_category_with_filter(filter_report, args, "Whitelist", "Blacklist")
 
+    related = None
     if whitelist:
         args = [reports, whitelist]
-        repManager.add_category_with_filter(find_related_thread, args, "Related", "Unrelated")
+        related, _ = repManager.add_category_with_filter(find_related_thread, args, "Related", "Unrelated")
 
-    args = [reports]
-    repManager.add_category_with_filter(find_race_write, args, "Race Write", "Normal Report")
+    if related:
+        args = [reports, related]
+        repManager.add_category_with_filter(find_race_write, args, "Race Write", "Normal Report")
+
+    repManager.set_mode(Config.DefaultMode)
 
     app = App()
     app.run()

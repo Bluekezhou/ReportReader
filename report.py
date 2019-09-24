@@ -6,10 +6,13 @@ import re
 
 class ReportManager:
 
-    def __init__(self):
+    def __init__(self, defaultMode=None):
         self.reports = None
         self.categories = {}
-        self.mode = 'All'
+        if defaultMode:
+            self.mode = defaultMode
+        else:
+            self.mode = 'All'
         self.supported_mode = ["All"]
     
     def add_reports(self, reports):
@@ -168,7 +171,7 @@ def find_related_thread(reports, index_list=None):
     def check(report):
         rep = parse_report(report)
         if 'tid' in rep:
-            if abs(rep['tid'][0] - rep['tid'][1]) > 50:
+            if abs(rep['tid'][0] - rep['tid'][1]) > 10:
                 return False
 
         return True
